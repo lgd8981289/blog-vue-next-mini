@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app"></div>
+</body>
+
+<script>
+  /**
+ * 收集所有依赖的 WeakMap 实例：
+ * 1. `key`：响应性对象
+ * 2. `value`：`Map` 对象
+ * 		1. `key`：响应性对象的指定属性
+ * 		2. `value`：指定对象的指定属性的 执行函数
+ */
+  const targetMap = new WeakMap()
+
+  /**
+   * 收集依赖
+   */
+  function track(target, key) {
+    // 如果当前不存在执行函数，则直接 return
+    if (!activeEffect) return
+    // 尝试从 targetMap 中，根据 target 获取 map
+    let depsMap = targetMap.get(target)
+    // 如果获取到的 map 不存在，则生成新的 map 对象，并把该对象赋值给对应的 value
+    if (!depsMap) {
+      targetMap.set(target, (depsMap = new Map()))
+    }
+    // 获取指定 key 的 dep
+    let dep = depsMap.get(key)
+    // 如果 dep 不存在，则生成一个新的 dep，并放入到 depsMap 中
+    if (!dep) {
+      depsMap.set(key, (dep = new Set()))
+    }
+    // 把所有的 activeEffect 方法加入到 dep 中
+    dep.add(activeEffect)
+  }
+
+  /**
+   * 触发依赖
+   */
+  function trigger(target, key) {
+    // 依据 target 获取存储的 map 实例
+    const depsMap = targetMap.get(target)
+    // 如果 map 不存在，则直接 return
+    if (!depsMap) {
+      return
+    }
+    // 依据指定的 key，获取 dep 实例
+    let dep = depsMap.get(key)
+    // dep 不存在则直接 return
+    if (!dep) {
+      return
+    }
+    // 触发 dep
+    triggerEffects(dep)
+  }
+
+  /**
+   * 依次触发 dep 中保存的依赖
+   */
+  function triggerEffects(dep) {
+    // 把 dep 构建为一个数组
+    const effects = Array.isArray(dep) ? dep : [...dep]
+    // 依次触发
+    for (const effect of effects) {
+      effect.run()
+    }
+  }
+
+  /**
+   * proxy 的 handler
+   */
+  const baseHandlers = {
+    get: (target, key, receiver) => {
+      // 利用 Reflect 得到返回值
+      const res = Reflect.get(target, key, receiver)
+      // 收集依赖
+      track(target, key)
+      return res
+    },
+    set: (target, key, value, receiver) => {
+      // 利用 Reflect.set 设置新值
+      const result = Reflect.set(target, key, value, receiver)
+      // 触发依赖
+      trigger(target, key)
+      return result
+    }
+  }
+
+  function reactive(target) {
+    const proxy = new Proxy(target, baseHandlers)
+    return proxy
+  }
+
+  // 当前需要执行的 effect
+  let activeEffect
+
+  /**
+   * 响应性触发依赖时的执行类
+   */
+  class ReactiveEffect {
+    constructor(fn) {
+      this.fn = fn
+    }
+
+    run() {
+      // 为 activeEffect 赋值
+      activeEffect = this
+
+      // 执行 fn 函数
+      return this.fn()
+    }
+  }
+
+  /**
+   * effect 函数
+   * @param fn 执行方法
+   * @returns 以 ReactiveEffect 实例为 this 的执行函数
+   */
+  function effect(fn) {
+    // 生成 ReactiveEffect 实例
+    const _effect = new ReactiveEffect(fn)
+
+    // 执行 run 函数
+    _effect.run()
+  }
+
+
+
+
+  const obj = reactive({
+    name: '张三'
+  })
+
+  // 调用 effect 方法
+  effect(() => {
+    document.querySelector('#app').innerText = obj.name
+  })
+
+  setTimeout(() => {
+    obj.name = '李四'
+  }, 2000);
+</script>
+
+</html>
