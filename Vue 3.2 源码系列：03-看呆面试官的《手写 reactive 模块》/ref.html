@@ -105,11 +105,13 @@
   // --------------- ref 模块 --------------- 
   class RefImpl {
     _rawValue
+    _value
     dep
 
     constructor(value) {
       // 原始数据
       this._rawValue = value
+      this._value = value
     }
 
     /**
@@ -119,7 +121,8 @@
     get value() {
       // 收集依赖
       if (activeEffect) {
-        trackEffects(ref.dep || (ref.dep = new Set()))
+        const dep = ref.dep || (ref.dep = new Set())
+        dep.add(activeEffect)
       }
       return this._value
     }
@@ -132,6 +135,7 @@
        */
       // 更新原始数据
       this._rawValue = newVal
+      this._value = newVal
       // 触发依赖
       if (ref.dep) {
         triggerEffects(ref.dep)
@@ -143,7 +147,7 @@
    * ref 函数
    * @param value unknown
    */
-  export function ref(value) {
+  function ref(value) {
     return new RefImpl(value)
   }
 
@@ -184,18 +188,16 @@
 
 
 
-  //  --------------- 测试 reactive --------------- 
-  const obj = reactive({
-    name: '张三'
-  })
+  //  --------------- 测试 ref --------------- 
+  const name = ref('张三')
 
   // 调用 effect 方法
   effect(() => {
-    document.querySelector('#app').innerText = obj.name
+    document.querySelector('#app').innerText = name.value
   })
 
   setTimeout(() => {
-    obj.name = '李四'
+    name.value = '李四'
   }, 2000);
 </script>
 
